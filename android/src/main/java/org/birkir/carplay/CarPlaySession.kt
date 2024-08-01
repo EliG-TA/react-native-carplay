@@ -46,12 +46,12 @@ class CarPlaySession(private val reactInstanceManager: ReactInstanceManager) : S
       }
     }, IntentFilter("org.birkir.carplay.APP_RELOAD"), Context.RECEIVER_EXPORTED)
      }else{
-+      carContext.registerReceiver(object : BroadcastReceiver() {
-+      override fun onReceive(context: Context, intent: Intent) {
-+        if ("org.birkir.carplay.APP_RELOAD" == intent.action) {
-+          invokeStartTask(reactInstanceManager.currentReactContext!!);
-+        }
-+      }
+       carContext.registerReceiver(object : BroadcastReceiver() {
+       override fun onReceive(context: Context, intent: Intent) {
+         if ("org.birkir.carplay.APP_RELOAD" == intent.action) {
+           invokeStartTask(reactInstanceManager.currentReactContext!!);
+         }
+       }
      }, IntentFilter("org.birkir.carplay.APP_RELOAD"))
      }
     // Run JS
