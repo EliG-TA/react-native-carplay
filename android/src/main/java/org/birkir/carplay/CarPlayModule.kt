@@ -117,21 +117,21 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
     eventEmitter?.didConnect()
   }
 
-  @ReactMethod
+ @ReactMethod
   fun createTemplate(templateId: String, config: ReadableMap, callback: Callback?) {
-      executeOrQueue {
-        try {
-          Log.d(TAG, "Creating template $templateId")
-          // Store the template
-          carTemplates[templateId] = config
-          createScreen(templateId);
+    executeOrQueue {
+      Log.d(TAG, "Creating template $templateId")
+      carTemplates[templateId] = config
+      createScreen(templateId) { screen ->
+        if (screen != null) {
           callback?.invoke()
-        } catch (err: IllegalArgumentException) {
+        } else {
           val args = Arguments.createMap()
-          args.putString("error", "Failed to parse template '$templateId': ${err.message}")
+          args.putString("error", "Failed to create screen for template '$templateId'")
           callback?.invoke(args)
         }
       }
+    }
   }
 
   @ReactMethod
@@ -154,22 +154,28 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
   fun setRootTemplate(templateId: String, animated: Boolean?) {
     executeOrQueue {
       Log.d(TAG, "set Root Template for $templateId")
-      val screen = getScreen(templateId)
-      if (screen != null) {
-        currentCarScreen = screen
-        screenManager?.popToRoot()
-        screenManager?.push(screen)
+      createScreen(templateId) { screen ->
+        if (screen != null) {
+          currentCarScreen = screen
+          screenManager?.popToRoot()
+          screenManager?.push(screen)
+        } else {
+          Log.e(TAG, "Failed to set root template $templateId: screen creation failed")
+        }
       }
     }
   }
 
-  @ReactMethod
+ @ReactMethod
   fun pushTemplate(templateId: String, animated: Boolean?) {
     executeOrQueue {
-      val screen = getScreen(templateId)
-      if (screen != null) {
-        currentCarScreen = screen;
-        screenManager?.push(screen)
+      createScreen(templateId) { screen ->
+        if (screen != null) {
+          currentCarScreen = screen
+          screenManager?.push(screen)
+        } else {
+          Log.e(TAG, "Failed to push template $templateId: screen creation failed")
+        }
       }
     }
   }
@@ -292,24 +298,33 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
     return CarScreenContext(templateId, EventEmitter(reactContext, templateId), carScreens)
   }
 
-  private fun createScreen(templateId: String): CarScreen? {
-    val config = carTemplates[templateId];
-    if (config != null) {
-      val screen = CarScreen(carContext)
-      screen.marker = templateId;
+   private fun createScreen(templateId: String, callback: ((CarScreen?) -> Unit)? = null) {
+    executeOrQueue {
+      try {
+        val config = carTemplates[templateId]
+        if (config == null) {
+          Log.e(TAG, "No template config found for $templateId")
+          callback?.invoke(null)
+          return@executeOrQueue
+        }
 
-      // context
-      carScreenContexts.remove(screen)
-      val carScreenContext = createCarScreenContext(screen)
-      carScreenContexts[screen] = carScreenContext
+        val screen = CarScreen(carContext)
+        screen.marker = templateId
 
-      val template = parseTemplate(config, carScreenContext);
-      screen.setTemplate(template, templateId, config)
-      carScreens[templateId] = screen;
+        val carScreenContext = createCarScreenContext(screen)
+        carScreenContexts[screen] = carScreenContext
 
-      return screen;
+        val template = parseTemplate(config, carScreenContext)
+        screen.setTemplate(template, templateId, config)
+        carScreens[templateId] = screen
+
+        Log.d(TAG, "Screen created for template $templateId")
+        callback?.invoke(screen)
+      } catch (e: Exception) {
+        Log.e(TAG, "Error creating screen for template $templateId", e)
+        callback?.invoke(null)
+      }
     }
-    return null;
   }
 
   private fun getScreen(name: String): CarScreen? {
