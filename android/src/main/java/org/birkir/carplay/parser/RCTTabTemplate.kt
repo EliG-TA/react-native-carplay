@@ -12,34 +12,45 @@ class RCTTabTemplate(
   context: CarContext,
   carScreenContext: CarScreenContext
 ) : RCTTemplate(context, carScreenContext) {
-  override fun parse(props: ReadableMap): TabTemplate {
+override fun parse(props: ReadableMap): TabTemplate {
     return TabTemplate.Builder(object : TabCallback {
-      override fun onTabSelected(tabContentId: String) {
-        eventEmitter.didSelectTemplate(tabContentId)
-      }
+        override fun onTabSelected(tabContentId: String) {
+            eventEmitter.didSelectTemplate(tabContentId)
+        }
     }).apply {
-      setLoading(props.isLoading())
-      props.getArray("templates")?.let {
-        for (i in 0 until it.size()) {
-          addTab(parseTab(it.getMap(i)))
+        setLoading(props.isLoading())
+        props.getArray("templates")?.let { templatesArray ->
+            for (i in 0 until templatesArray.size()) {
+                try {
+                    addTab(parseTab(templatesArray.getMap(i)))
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing tab at index $i", e)
+                }
+            }
+            // Apply and select first tab if available
+            if (templatesArray.size() > 0) {
+                templatesArray.getMap(0).getString("id")?.let { firstTabId ->
+                    try {
+                        setTabContents(parseTabContents(firstTabId))
+                        setActiveTabContentId(firstTabId)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error setting first tab content", e)
+                    }
+                }
+            }
         }
-        // Apply and select first tab
-        it.getMap(0).getString("id")?.let { it1 ->
-          setTabContents(parseTabContents(it1))
-          setActiveTabContentId(it1)
-        }
-      }
-      props.getMap("headerAction")?.let { setHeaderAction(parseAction(it)) }
+        props.getMap("headerAction")?.let { setHeaderAction(parseAction(it)) }
     }.build()
-  }
+}
 
   private fun parseTab(props: ReadableMap): Tab {
     return Tab.Builder().apply {
-      props.getString("id")?.let { setContentId(it) }
-      props.getString("title")?.let { setTitle(it) }
-      props.getMap("icon")?.let { setIcon(parseCarIcon(it)) }
+        props.getString("id")?.let { setContentId(it) }
+        // Set a default title if one isn't provided
+        setTitle(props.getString("title") ?: "Untitled Tab")
+        props.getMap("icon")?.let { setIcon(parseCarIcon(it)) }
     }.build()
-  }
+}
 
   private fun parseTabContents(templateId: String): TabContents {
     val screen = carScreenContext.screens[templateId]!!
