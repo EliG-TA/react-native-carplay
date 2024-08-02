@@ -37,8 +37,9 @@ import java.util.WeakHashMap
 @ReactModule(name = CarPlayModule.NAME)
 class CarPlayModule internal constructor(private val reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
-
+  private var isInitialized = false
   private lateinit var carContext: CarContext
+  private val pendingOperations = mutableListOf<() -> Unit>()  
   private lateinit var parser: Parser;
 
   private var currentCarScreen: CarScreen? = null
@@ -82,6 +83,25 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
       }
     })
     eventEmitter?.didConnect()
+    isInitialized = true
+    Log.d(TAG, "CarPlay context initialized")
+    processPendingOperations()
+  }
+
+  private fun processPendingOperations() {
+    handler.post {
+      pendingOperations.forEach { it.invoke() }
+      pendingOperations.clear()
+    }
+  }
+
+  private fun executeOrQueue(operation: () -> Unit) {
+    if (isInitialized) {
+      handler.post(operation)
+    } else {
+      pendingOperations.add(operation)
+      Log.d(TAG, "Operation queued. Waiting for CarPlay initialization.")
+    }
   }
 
   private fun parseTemplate(
@@ -99,26 +119,24 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
 
   @ReactMethod
   fun createTemplate(templateId: String, config: ReadableMap, callback: Callback?) {
-    handler.post {
-      Log.d(TAG, "Creating template $templateId")
-
-      // Store the template
-      carTemplates[templateId] = config;
-
-      try {
-        createScreen(templateId);
-        callback?.invoke()
-      } catch (err: IllegalArgumentException) {
-        val args = Arguments.createMap()
-        args.putString("error", "Failed to parse template '$templateId': ${err.message}")
-        callback?.invoke(args)
+      executeOrQueue {
+        try {
+          Log.d(TAG, "Creating template $templateId")
+          // Store the template
+          carTemplates[templateId] = config
+          createScreen(templateId);
+          callback?.invoke()
+        } catch (err: IllegalArgumentException) {
+          val args = Arguments.createMap()
+          args.putString("error", "Failed to parse template '$templateId': ${err.message}")
+          callback?.invoke(args)
+        }
       }
-    }
   }
 
   @ReactMethod
   fun updateTemplate(templateId: String, config: ReadableMap) {
-    handler.post {
+    executeOrQueue {
       carTemplates[templateId] = config;
       val screen = carScreens[name]
       if (screen != null) {
@@ -134,8 +152,8 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
 
   @ReactMethod
   fun setRootTemplate(templateId: String, animated: Boolean?) {
-    Log.d(TAG, "set Root Template for $templateId")
-    handler.post {
+    executeOrQueue {
+      Log.d(TAG, "set Root Template for $templateId")
       val screen = getScreen(templateId)
       if (screen != null) {
         currentCarScreen = screen
@@ -147,7 +165,7 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
 
   @ReactMethod
   fun pushTemplate(templateId: String, animated: Boolean?) {
-    handler.post {
+    executeOrQueue {
       val screen = getScreen(templateId)
       if (screen != null) {
         currentCarScreen = screen;
@@ -158,14 +176,14 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
 
   @ReactMethod
   fun popToTemplate(templateId: String, animated: Boolean?) {
-    handler.post {
+    executeOrQueue {
       screenManager?.popTo(templateId);
     }
   }
 
   @ReactMethod
   fun popTemplate(animated: Boolean?) {
-    handler.post {
+    executeOrQueue {
       screenManager!!.pop()
       removeScreen(currentCarScreen)
       currentCarScreen = screenManager!!.top as CarScreen
@@ -196,7 +214,7 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
 
   @ReactMethod
   fun alert(props: ReadableMap) {
-    handler.post {
+    executeOrQueue {
       val id = props.getInt("id");
       val title = parser.parseCarText(props.getString("title")!!, props);
       val duration = props.getInt("duration").toLong();
@@ -234,7 +252,7 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
 
   @ReactMethod
   fun invalidate(templateId: String) {
-    handler.post {
+    executeOrQueue {
       val screen = getScreen(templateId)
       if (screen === screenManager!!.top) {
         Log.d(TAG, "Invalidated screen $templateId")
@@ -275,10 +293,6 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
   }
 
   private fun createScreen(templateId: String): CarScreen? {
-    if (!::carContext.isInitialized) {
-      Log.e(TAG, "carContext is not initialized.")
-      return null
-    }
     val config = carTemplates[templateId];
     if (config != null) {
       val screen = CarScreen(carContext)
