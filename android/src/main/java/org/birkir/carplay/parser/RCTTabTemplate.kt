@@ -1,5 +1,6 @@
 package org.birkir.carplay.parser
 
+import android.util.Log
 import androidx.car.app.CarContext
 import androidx.car.app.model.Tab
 import androidx.car.app.model.TabContents
