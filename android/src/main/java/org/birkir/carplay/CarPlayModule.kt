@@ -152,32 +152,32 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
 
   @ReactMethod
   fun setRootTemplate(templateId: String, animated: Boolean?) {
-    executeOrQueue {
-      Log.d(TAG, "set Root Template for $templateId")
-      createScreen(templateId) { screen ->
-        if (screen != null) {
-          currentCarScreen = screen
-          screenManager?.popToRoot()
-          screenManager?.push(screen)
-        } else {
-          Log.e(TAG, "Failed to set root template $templateId: screen creation failed")
-        }
+      executeOrQueue {
+          Log.d(TAG, "set Root Template for $templateId")
+          getScreen(templateId) { screen ->
+              if (screen != null) {
+                  currentCarScreen = screen
+                  screenManager?.popToRoot()
+                  screenManager?.push(screen)
+              } else {
+                  Log.e(TAG, "Failed to set root template $templateId: screen creation failed")
+              }
+          }
       }
-    }
   }
 
- @ReactMethod
+  @ReactMethod
   fun pushTemplate(templateId: String, animated: Boolean?) {
-    executeOrQueue {
-      createScreen(templateId) { screen ->
-        if (screen != null) {
-          currentCarScreen = screen
-          screenManager?.push(screen)
-        } else {
-          Log.e(TAG, "Failed to push template $templateId: screen creation failed")
-        }
+      executeOrQueue {
+          getScreen(templateId) { screen ->
+              if (screen != null) {
+                  currentCarScreen = screen
+                  screenManager?.push(screen)
+              } else {
+                  Log.e(TAG, "Failed to push template $templateId: screen creation failed")
+              }
+          }
       }
-    }
   }
 
   @ReactMethod
@@ -256,15 +256,16 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
     carContext.getCarService(AppManager::class.java).dismissAlert(alertId)
   }
 
-  @ReactMethod
-  fun invalidate(templateId: String) {
-    executeOrQueue {
-      val screen = getScreen(templateId)
-      if (screen === screenManager!!.top) {
-        Log.d(TAG, "Invalidated screen $templateId")
-        screen.invalidate()
+ @ReactMethod
+ fun invalidate(templateId: String) {
+      executeOrQueue {
+          getScreen(templateId) { screen ->
+              if (screen != null && screen === screenManager?.top) {
+                  Log.d(TAG, "Invalidated screen $templateId")
+                  screen.invalidate()
+              }
+          }
       }
-    }
   }
 
   @ReactMethod
@@ -327,9 +328,14 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
     }
   }
 
-  private fun getScreen(name: String): CarScreen? {
-    return carScreens[name] ?: createScreen(name);
-  }
+ private fun getScreen(name: String, callback: (CarScreen?) -> Unit) {
+    val existingScreen = carScreens[name]
+    if (existingScreen != null) {
+        callback(existingScreen)
+    } else {
+        createScreen(name, callback)
+    }
+}
 
   private fun removeScreen(screen: CarScreen?) {
     val params = WritableNativeMap()
