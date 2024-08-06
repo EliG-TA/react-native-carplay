@@ -9,11 +9,9 @@ import androidx.car.app.AppManager
 import androidx.car.app.CarContext
 import androidx.car.app.CarToast
 import androidx.car.app.ScreenManager
-import androidx.car.app.SessionInfo
 import androidx.car.app.model.Alert
 import androidx.car.app.model.AlertCallback
-import androidx.car.app.model.CarText
-import androidx.car.app.model.Distance
+import androidx.car.app.model.TabTemplate
 import androidx.car.app.model.Template
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Callback
@@ -39,7 +37,7 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
   ReactContextBaseJavaModule(reactContext) {
   private var isInitialized = false
   private lateinit var carContext: CarContext
-  private val pendingOperations = mutableListOf<() -> Unit>()  
+  private val pendingOperations = mutableListOf<() -> Unit>()
   private lateinit var parser: Parser;
 
   private var currentCarScreen: CarScreen? = null
@@ -137,14 +135,19 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
   @ReactMethod
   fun updateTemplate(templateId: String, config: ReadableMap) {
     executeOrQueue {
-      carTemplates[templateId] = config;
-      val screen = carScreens[name]
+      carTemplates[templateId] = config
+      val screen = carScreens[templateId]
       if (screen != null) {
-        val carScreenContext = carScreenContexts[screen];
+        val carScreenContext = carScreenContexts[screen]
         if (carScreenContext != null) {
-          val template = parseTemplate(config, carScreenContext);
-          screen.setTemplate(template, templateId, config);
+          val template = parseTemplate(config, carScreenContext)
+          screen.setTemplate(template, templateId, config)
           screen.invalidate()
+          // If this is a tab template, we need to update the main tab screen as well
+          if (template is TabTemplate) {
+            carScreens[carScreenContext.screenMarker]?.setTemplate(template, carScreenContext.screenMarker, config)
+            carScreens[carScreenContext.screenMarker]?.invalidate()
+          }
         }
       }
     }
@@ -303,6 +306,7 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
     executeOrQueue {
       try {
         val config = carTemplates[templateId]
+        Log.d(TAG, "$config 1")
         if (config == null) {
           Log.e(TAG, "No template config found for $templateId")
           callback?.invoke(null)
@@ -314,7 +318,7 @@ class CarPlayModule internal constructor(private val reactContext: ReactApplicat
 
         val carScreenContext = createCarScreenContext(screen)
         carScreenContexts[screen] = carScreenContext
-
+        Log.d(TAG, "$carScreenContext 2")
         val template = parseTemplate(config, carScreenContext)
         screen.setTemplate(template, templateId, config)
         carScreens[templateId] = screen
