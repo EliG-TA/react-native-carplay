@@ -56,6 +56,11 @@ export interface ListItem {
    */
   accessoryImage?: ImageSourcePropType;
   /**
+   ** The image from file system displayed on the leading edge of the list item cell.
+   * @namespace iOS
+   */
+  systemImageName?: string;
+  /**
    * Sets the initial enabled state for Row.
    * @default true
    * @namespace Android
