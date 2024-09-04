@@ -660,13 +660,13 @@ RCT_EXPORT_METHOD(updateListTemplateItem:(NSString *)templateId config:(NSDictio
         CPListTemplate *listTemplate = (CPListTemplate*) template;
         NSInteger sectionIndex = [RCTConvert NSInteger:config[@"sectionIndex"]];
         if (sectionIndex >= listTemplate.sections.count) {
-            NSLog(@"Failed to update item at section %d, sections size is %d", index, listTemplate.sections.count);
+            NSLog(@"Failed to update item at section %ld, sections size is %lu", (long)sectionIndex, (unsigned long)listTemplate.sections.count);
             return;
         }
         CPListSection *section = listTemplate.sections[sectionIndex];
         NSInteger index = [RCTConvert NSInteger:config[@"itemIndex"]];
         if (index >= section.items.count) {
-            NSLog(@"Failed to update item at index %d, section size is %d", index, section.items.count);
+            NSLog(@"Failed to update item at index %ld, section size is %lu", (long)index, (unsigned long)section.items.count);
             return;
         }
         CPListItem *item = (CPListItem *)section.items[index];
@@ -674,23 +674,34 @@ RCT_EXPORT_METHOD(updateListTemplateItem:(NSString *)templateId config:(NSDictio
             NSString *imgUrlString = [RCTConvert NSString:config[@"imgUrl"]];
             [self updateItemImageWithURL:item imgUrl:imgUrlString];
         }
-        if (config[@"image"]) {
-            [item setImage:[RCTConvert UIImage:config[@"image"]]];
-        }
-        if (config[@"text"]) {
-            [item setText:[RCTConvert NSString:config[@"text"]]];
-        }
-        if (config[@"detailText"]) {
-            [item setDetailText:[RCTConvert NSString:config[@"detailText"]]];
-        }
-        if (config[@"isPlaying"]) {
-            [item setPlaying:[RCTConvert BOOL:config[@"isPlaying"]]];
-        }
-        if (@available(iOS 14.0, *) && config[@"playbackProgress"]) {
-            [item setPlaybackProgress:[RCTConvert CGFloat:config[@"playbackProgress"]]];
-        }
-        if (@available(iOS 14.0, *) && config[@"accessoryImage"]) {
-            [item setAccessoryImage:[RCTConvert UIImage:config[@"accessoryImage"]]];
+        if (@available(iOS 14.0, *)) {
+            if (config[@"image"]) {
+                [item setImage:[RCTConvert UIImage:config[@"image"]]];
+            }
+            if (config[@"text"]) {
+                [item setText:[RCTConvert NSString:config[@"text"]]];
+            }
+            if (config[@"detailText"]) {
+                [item setDetailText:[RCTConvert NSString:config[@"detailText"]]];
+            }
+            if (config[@"isPlaying"]) {
+                [item setPlaying:[RCTConvert BOOL:config[@"isPlaying"]]];
+            }
+            if (config[@"playbackProgress"]) {
+                [item setPlaybackProgress:[RCTConvert CGFloat:config[@"playbackProgress"]]];
+            }
+            if (config[@"accessoryImage"]) {
+                [item setAccessoryImage:[RCTConvert UIImage:config[@"accessoryImage"]]];
+            }
+            if (config[@"systemImageName"]) {
+                NSString *systemImageName = [RCTConvert NSString:config[@"systemImageName"]];
+                UIImage *systemImage = [UIImage systemImageNamed:systemImageName];
+                if (systemImage) {
+                    [item setImage:systemImage];
+                } else {
+                    NSLog(@"Failed to load system image with name: %@", systemImageName);
+                }
+            }
         }
     } else {
         NSLog(@"Failed to find template %@", template);
@@ -1094,6 +1105,25 @@ RCT_EXPORT_METHOD(updateMapTemplateMapButtons:(NSString*) templateId mapButtons:
             if (@available(iOS 14.0, *)) {
                 CPListItemAccessoryType accessoryType = _showsDisclosureIndicator ? CPListItemAccessoryTypeDisclosureIndicator : CPListItemAccessoryTypeNone;
                 _item = [[CPListItem alloc] initWithText:_text detailText:_detailText image:_image accessoryImage:nil accessoryType:accessoryType];
+                NSString *systemImageName = [item objectForKey:@"systemImageName"];
+                if (systemImageName) {
+                    UIImage *systemImage = [UIImage systemImageNamed:systemImageName];
+                    if (systemImage) {
+                        // Create a template image and apply the default label color
+                        UIImage *templateImage = [systemImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+                        UIImageView *imageView = [[UIImageView alloc] initWithImage:templateImage];
+                        imageView.tintColor = [UIColor colorWithWhite:0.5 alpha:1.0];
+                        
+                        UIGraphicsBeginImageContextWithOptions(templateImage.size, NO, 0.0);
+                        [imageView.layer renderInContext:UIGraphicsGetCurrentContext()];
+                        UIImage *tintedImage = UIGraphicsGetImageFromCurrentImageContext();
+                        UIGraphicsEndImageContext();
+                        
+                        [_item setImage:tintedImage];
+                    } else {
+                        NSLog(@"Failed to load system image with name: %@", systemImageName);
+                    }
+                }
             } else {
                 _item = [[CPListItem alloc] initWithText:_text detailText:_detailText image:_image showsDisclosureIndicator:_showsDisclosureIndicator];
             }
